@@ -111,7 +111,8 @@ module Paperclip
       return nil if uploaded_file.nil?
 
       uploaded_filename ||= uploaded_file.original_filename
-      @queued_for_write[:original]   = to_tempfile(uploaded_file)
+      @queued_for_write[:original]        = Hash.new
+      @queued_for_write[:original][:file] = to_tempfile(uploaded_file)
       instance_write(:file_name,       uploaded_filename.strip)
       instance_write(:content_type,    uploaded_file.content_type.to_s.strip)
       instance_write(:file_size,       uploaded_file.size.to_i)
@@ -123,8 +124,8 @@ module Paperclip
       post_process(*@options.only_process) if post_processing
 
       # Reset the file size if the original file was reprocessed.
-      instance_write(:file_size,   @queued_for_write[:original].size.to_i)
-      instance_write(:fingerprint, generate_fingerprint(@queued_for_write[:original]))
+      instance_write(:file_size,   @queued_for_write[:original][:file].size.to_i)
+      instance_write(:fingerprint, generate_fingerprint(@queued_for_write[:original][:file]))
     ensure
       uploaded_file.close if close_uploaded_file
     end
@@ -235,13 +236,13 @@ module Paperclip
     # Returns the size of the file as originally assigned, and lives in the
     # <attachment>_file_size attribute of the model.
     def size
-      instance_read(:file_size) || (@queued_for_write[:original] && @queued_for_write[:original].size)
+      instance_read(:file_size) || (@queued_for_write[:original][:file] && @queued_for_write[:original][:file].size)
     end
 
     # Returns the hash of the file as originally assigned, and lives in the
     # <attachment>_fingerprint attribute of the model.
     def fingerprint
-      instance_read(:fingerprint) || (@queued_for_write[:original] && generate_fingerprint(@queued_for_write[:original]))
+      instance_read(:fingerprint) || (@queued_for_write[:original][:file] && generate_fingerprint(@queued_for_write[:original][:file]))
     end
 
     # Returns the content_type of the file as originally assigned, and lives
@@ -305,7 +306,7 @@ module Paperclip
         new_original.write( old_original.respond_to?(:get) ? old_original.get : old_original.read )
         new_original.rewind
 
-        @queued_for_write = { :original => new_original }
+        @queued_for_write = { :original => { :file => new_original } }
         instance_write(:updated_at, Time.now)
         post_process(*style_args)
 
@@ -395,7 +396,7 @@ module Paperclip
     end
 
     def post_process(*style_args) #:nodoc:
-      return if @queued_for_write[:original].nil?
+      return if @queued_for_write[:original][:file].nil?
       instance.run_paperclip_callbacks(:post_process) do
         instance.run_paperclip_callbacks(:"#{name}_post_process") do
           post_process_styles(*style_args)
@@ -408,8 +409,8 @@ module Paperclip
         begin
           if style_args.empty? || style_args.include?(name)
             raise RuntimeError.new("Style #{name} has no processors defined.") if style.processors.blank?
-            @queued_for_write[name] = style.processors.inject(@queued_for_write[:original]) do |file, processor|
-              Paperclip.processor(processor).make(file, style.processor_options, self)
+            @queued_for_write[name] = style.processors.inject(@queued_for_write[:original]) do |options, processor|
+              { :style => style, :file => Paperclip.processor(processor).make(options[:file], style.processor_options, self) }
             end
           end
         rescue PaperclipError => e
@@ -442,9 +443,9 @@ module Paperclip
 
     # called by storage after the writes are flushed and before @queued_for_writes is cleared
     def after_flush_writes
-      @queued_for_write.each do |style, file|
-        file.close unless file.closed?
-        file.unlink if file.respond_to?(:unlink) && file.path.present? && File.exist?(file.path)
+      @queued_for_write.each do |style, options|
+        options[:file].close unless options[:file].closed?
+        options[:file].unlink if options[:file].respond_to?(:unlink) && options[:file].path.present? && File.exist?(options[:file].path)
       end
     end
 

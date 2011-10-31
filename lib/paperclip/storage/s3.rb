@@ -196,7 +196,8 @@ module Paperclip
       # Returns representation of the data of the file assigned to the given
       # style, in the format most representative of the current storage.
       def to_file style = default_style
-        return @queued_for_write[style] if @queued_for_write[style]
+
+        return @queued_for_write[style][:file] if @queued_for_write && @queued_for_write[style] && @queued_for_write[style][:file]
         filename = path(style)
         extname  = File.extname(filename)
         basename = File.basename(filename, extname)
@@ -212,13 +213,18 @@ module Paperclip
       end
 
       def flush_writes #:nodoc:
-        @queued_for_write.each do |style, file|
+        @queued_for_write.each do |style, options|
+          begin
+            content_type = options[:style].content_type.to_s.strip
+          rescue
+            content_type = options[:file].content_type.to_s.strip
+          end
           begin
             log("saving #{path(style)}")
             s3_object.store(path(style),
-                                    file,
+                                    options[:file],
                                     bucket_name,
-                                    {:content_type => file.content_type.to_s.strip,
+                                    {:content_type => content_type,
                                      :access => s3_permissions(style),
                                     }.merge(@s3_headers))
           rescue AWS::S3::NoSuchBucket => e

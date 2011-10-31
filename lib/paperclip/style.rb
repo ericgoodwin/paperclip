@@ -6,7 +6,7 @@ module Paperclip
 
   class Style
 
-    attr_reader :name, :attachment, :format
+    attr_reader :name, :attachment, :format, :content_type
 
     # Creates a Style object. +name+ is the name of the attachment,
     # +definition+ is the style definition from has_attached_file, which
@@ -18,9 +18,10 @@ module Paperclip
         @geometry = definition.delete(:geometry)
         @format = definition.delete(:format)
         @processors = definition.delete(:processors)
+        @content_type = definition.delete(:content_type)
         @other_args = definition
       else
-        @geometry, @format = [definition, nil].flatten[0..1]
+        @geometry, @format, @content_type = [definition, nil].flatten[0..2]
         @other_args = {}
       end
       @format  = nil if @format.blank?
@@ -67,7 +68,7 @@ module Paperclip
       @other_args.each do |k,v|
         args[k] = v.respond_to?(:call) ? v.call(attachment) : v
       end
-      [:processors, :geometry, :format, :whiny, :convert_options, :source_file_options].each do |k|
+      [:processors, :geometry, :format, :whiny, :convert_options, :content_type, :source_file_options].each do |k|
         (arg = send(k)) && args[k] = arg
       end
       args
@@ -76,7 +77,7 @@ module Paperclip
     # Supports getting and setting style properties with hash notation to ensure backwards-compatibility
     # eg. @attachment.options.styles[:large][:geometry]@ will still work
     def [](key)
-      if [:name, :convert_options, :whiny, :processors, :geometry, :format, :animated, :source_file_options].include?(key)
+      if [:name, :convert_options, :whiny, :processors, :geometry, :format, :content_type, :animated, :source_file_options].include?(key)
         send(key)
       elsif defined? @other_args[key]
         @other_args[key]
@@ -84,7 +85,7 @@ module Paperclip
     end
 
     def []=(key, value)
-      if [:name, :convert_options, :whiny, :processors, :geometry, :format, :animated, :source_file_options].include?(key)
+      if [:name, :convert_options, :whiny, :processors, :geometry, :format, :content_type, :animated, :source_file_options].include?(key)
         send("#{key}=".intern, value)
       else
         @other_args[key] = value

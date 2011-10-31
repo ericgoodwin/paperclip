@@ -34,6 +34,7 @@ module Paperclip
       @target_geometry     = (options[:string_geometry_parser] || Geometry).parse(geometry)
       @current_geometry    = (options[:file_geometry_parser] || Geometry).from_file(@file)
       @source_file_options = options[:source_file_options]
+      @content_type        = options[:content_type]
       @convert_options     = options[:convert_options]
       @whiny               = options[:whiny].nil? ? true : options[:whiny]
       @format              = options[:format]
